@@ -7,29 +7,28 @@
     Author:Dieter Beckers 2024
     https://github.com/dabeastnet
 
-.PARAMETERS
-    ImageWidth
+.PARAMETER ImageWidth
         Specifies the width of the generated image. Default is 800.
 
-    ImageHeight
+.PARAMETER ImageHeight
         Specifies the height of the generated image. Default is 600.
 
-    Path
+.PARAMETER Path
         Defines the file path where the image will be saved. Default is "C:\temp\Background.png".
 
-    Text
+.PARAMETER Text
         Optional text that can be added to the image.
 
-    Bubble
+.PARAMETER Bubble
         A switch to select the bubble pattern.
 
-    Circle
+.PARAMETER Circle
         A switch to select the concentric circle pattern.
 
-    Stripe
+.PARAMETER Stripe
         A switch to select the stripe pattern.
 
-    Square
+.PARAMETER Square
         A switch to select the square pattern.
 
 .EXAMPLE
