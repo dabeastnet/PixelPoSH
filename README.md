@@ -1,4 +1,5 @@
 ![Header](./images/Header.png)
+(Generated with PixelPoSH)
 
 # PixelPoSH
 
@@ -8,7 +9,7 @@ PixelPoSH is a PowerShell module that generates customizable graphical backgroun
 
 - Generate images with specified width and height.
 - Choose between multiple patterns: bubbles, concentric circles, stripes, and squares.
-- Add optional text to the image.
+- Add optional text to the image: this can be colored and you can specify textsize.
 - Save images to a specified path in PNG format.
 - `colormind.io` API integration for fetching color palettes.
 
@@ -59,12 +60,18 @@ If you wish to update these palettes, simply run `Get-StaticPalettes.ps1`. This 
 
 Below you can find some examples:
 
-### Available Parameters
+## Example images
+Please see the [EXAMPLES.md](./EXAMPLES.md) for some example output.
+
+### Parameters
+The following are the available parameters, with it's default values:
 ```powershell
         [int]$ImageWidth = 800,
         [int]$ImageHeight = 600,
         [string]$Path = "C:\temp\Background.png",
         [string]$Text = $null,
+        [int]$TextSize = 40,                     
+        [String]$TextColor = "#FFFFFF",  
         [switch]$Bubble,
         [switch]$Circle,
         [switch]$Stripe,
@@ -91,8 +98,26 @@ New-RandomImage -ImageWidth 1920 -ImageHeight 1080 -Path "C:\temp\test.png" -Tex
 New-RandomImage -Bubble -Square
 ```
 
-## Example images
-Please see the [EXAMPLES.md](./EXAMPLES.md) for some examples.
+### Create a 800x600 image with a multiline, colored custom text in size 60
+```powershell
+New-RandomImage -Text "LOLOLOL`nPixelPoSH is 9001`nLOLOLOL" -TextSize 60 -TextColor "#AAFFFF"
+# The (backtic) `n is used as a newline indicator
+```
+![Multiline text](./images/Multiline.png)
+
+### Advanced text
+Here is an example to display machinename, IP and uptime on the image.
+```powershell
+#Fetch the info
+$IP = (Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null -and $_.NetAdapter.Status -eq 'Up' }).IPv4Address.IPAddress
+$Uptime = (get-date) - (gcim Win32_OperatingSystem).LastBootUpTime
+$FormattedUptime = "{0} days, {1} hours, {2} minutes" -f $Uptime.Days, $Uptime.Hours, $Uptime.Minutes, $Uptime.Seconds
+
+#Generate the image in a yellow text
+New-RandomImage -Text "$env:COMPUTERNAME`nIP adress: $IP`nUptime: $FormattedUptime" -TextSize 30 -TextColor "#FFF500"
+```
+![Multiline text](./images/Advanced.png)
+
 
 ## Contributing
 

@@ -19,6 +19,12 @@
 .PARAMETER Text
         Optional text that can be added to the image.
 
+.PARAMETER TextSize
+        Specifies textsize of the text parameter. Default is 40.
+
+.PARAMETER TextColor
+        Specifies the textcolor in HEX format of the text parameter. You can specify this with or without the '#'. Default is #FFFFFF (white).
+
 .PARAMETER Bubble
         A switch to select the bubble pattern.
 
@@ -47,17 +53,19 @@ function New-RandomImage {
         [int]$ImageHeight = 600,
         [string]$Path = "C:\temp\Background.png",
         [string]$Text = $null,
+        [int]$TextSize = 40,                     
+        [String]$TextColor = "#FFFFFF",  
         [switch]$Bubble,
         [switch]$Circle,
         [switch]$Stripe,
         [switch]$Square
 
     )
-        # Load required assemblies
-        Add-Type -AssemblyName System.Drawing
-        $bitmap = New-Object System.Drawing.Bitmap($imageWidth, $imageHeight)
-        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-        $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    # Load required assemblies
+    Add-Type -AssemblyName System.Drawing
+    $bitmap = New-Object System.Drawing.Bitmap($imageWidth, $imageHeight)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
 
         
     # Background
@@ -91,28 +99,65 @@ function New-RandomImage {
         #Decode palette list to JSON
         $Decodedpalettes = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String($B64Palettes)) | ConvertFrom-Json
       
-      return ($Decodedpalettes[(Get-Random -Minimum 0 -Maximum ($Decodedpalettes.count -1))])
+        return ($Decodedpalettes[(Get-Random -Minimum 0 -Maximum ($Decodedpalettes.count - 1))])
     
     }#Get-ColorPalette
-
+    
     function New-Text {
         param(
-            [System.Drawing.Graphics]$graphics,          # Graphics object where the text will be drawn
-            [int]$imageWidth,                            # Width of the image
-            [int]$imageHeight,                           # Height of the image
-            [string]$text,                               # Text to be added to the image
-            [System.Drawing.Font]$font,                  # Font to be used for the text
-            [System.Drawing.Brush]$textBrush,            # Brush for the text color
-            [System.Drawing.Brush]$borderBrush,          # Brush for the text border color
+            [System.Drawing.Graphics]$graphics, # Graphics object where the text will be drawn
+            [int]$imageWidth, # Width of the image
+            [int]$imageHeight, # Height of the image
+            [string]$text, # Text to be added to the image
+            [System.Drawing.Font]$font, # Font to be used for the text
+            [System.Drawing.Brush]$textBrush, # Brush for the text color
+            [System.Drawing.Brush]$borderBrush, # Brush for the text border color
+            [int]$textSize = 40, # Text size
+            [String]$textColor = "#FFFFFF", # Color of the text
             [int]$borderThickness = 3                    # Thickness of the border around the text
         )
+
+        function Convert-HexToRGB {
+            param (
+                [string]$hexColor # Hex color string, e.g., "#FF5733" or "FF5733"
+            )
         
+            # Remove the hash (#) if it's present
+            $hexColor = $hexColor.TrimStart("#")
+        
+            # Check if the hex color is valid (should be 6 characters after removing '#')
+            if ($hexColor.Length -ne 6) {
+                Write-Error "Invalid hex color format. Please provide a 6-character hex color."
+                return
+            }
+        
+            # Split the hex color into RGB components
+            $r = [convert]::ToInt32($hexColor.Substring(0, 2), 16)
+            $g = [convert]::ToInt32($hexColor.Substring(2, 2), 16)
+            $b = [convert]::ToInt32($hexColor.Substring(4, 2), 16)
+        
+            # Return an object with RGB values
+            return [PSCustomObject]@{
+                Red   = $r
+                Green = $g
+                Blue  = $b
+            }
+        }
+        
+        $color = Convert-HexToRGB $textColor
+
+        $font = New-Object System.Drawing.Font("Arial", $textSize, [System.Drawing.FontStyle]::Bold) # Font settings
+        $textBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, $color.Red, $color.Green, $color.Blue)) # Brush for text color
+        $borderBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Black) # Brush for text border
+
+                
         # Create a GraphicsPath object to draw text with advanced styling
         $graphicsPath = New-Object System.Drawing.Drawing2D.GraphicsPath
         # Set text alignment to the far right, to align text at the right side of the image
         $format = New-Object System.Drawing.StringFormat
         $format.Alignment = [System.Drawing.StringAlignment]::Far
         $format.LineAlignment = [System.Drawing.StringAlignment]::Far
+        $format.FormatFlags = [System.Drawing.StringFormatFlags]::NoClip
         
         # Calculate padding based on border thickness to avoid clipping
         $padding = 10 + $borderThickness
@@ -135,28 +180,31 @@ function New-RandomImage {
         $pen.Dispose()
         $graphicsPath.Dispose()
         $format.Dispose()
+
     }#New-Text
     
 
     function New-BubbleBackground {
         param(
-            [System.Drawing.Graphics]$graphics,          # Graphics object for drawing
-            [System.Drawing.Bitmap]$bitmap,              # Bitmap on which bubbles are drawn
-            [int]$imageWidth = 800,                      # Width of the image
-            [int]$imageHeight = 600,                     # Height of the image
+            [System.Drawing.Graphics]$graphics, # Graphics object for drawing
+            [System.Drawing.Bitmap]$bitmap, # Bitmap on which bubbles are drawn
+            [int]$imageWidth = 800, # Width of the image
+            [int]$imageHeight = 600, # Height of the image
             [int[][]]$colorPalette = @(                  # Color palette for gradients and bubbles
                 @(167, 56, 27), 
                 @(227, 197, 113), 
                 @(185, 178, 149), 
                 @(102, 173, 118)
             ),
-            [int]$minBubbleSize = 10,                    # Minimum size of bubbles
-            [int]$maxBubbleSize = 100,                   # Maximum size of bubbles
-            [int]$numBubbles = 50,                       # Number of bubbles to generate
-            [int]$bubbleColorAlphaMin = 50,              # Minimum alpha value for bubble color
-            [int]$bubbleColorAlphaMax = 200,             # Maximum alpha value for bubble color
-            [int]$colorVariance = 20,                    # Variance in color components to create diversity
-            [string]$Text = $null,                       # Optional text to overlay on the image
+            [int]$minBubbleSize = 10, # Minimum size of bubbles
+            [int]$maxBubbleSize = 100, # Maximum size of bubbles
+            [int]$numBubbles = 50, # Number of bubbles to generate
+            [int]$bubbleColorAlphaMin = 50, # Minimum alpha value for bubble color
+            [int]$bubbleColorAlphaMax = 200, # Maximum alpha value for bubble color
+            [int]$colorVariance = 20, # Variance in color components to create diversity
+            [string]$Text = $null, # Optional text to overlay on the image
+            [int]$TextSize = 40,                     
+            [String]$TextColor = "#FFFFFF",  
             [string]$savePath = "C:\temp\BubbleBackground.png"  # Path to save the output image
         )
         
@@ -201,14 +249,9 @@ function New-RandomImage {
             $bubbleBrush.Dispose() # Clean up the brush to free resources
         }
     
-        # If text is provided, add it using the New-Text function
+        # Add text to the image if specified
         if ($Text) {
-            $font = New-Object System.Drawing.Font("Arial", 40, [System.Drawing.FontStyle]::Bold) # Font settings
-            $textBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White) # Brush for text color
-            $borderBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Black) # Brush for text border
-            
-            # Draw text with borders
-            New-Text -graphics $graphics -imageWidth $imageWidth -imageHeight $imageHeight -text $Text -font $font -textBrush $textBrush -borderBrush $borderBrush
+            New-Text -graphics $graphics -imageWidth $imageWidth -imageHeight $imageHeight -text $Text -TextSize $TextSize -TextColor $TextColor
         }
     
     }#New-BubbleBackground
@@ -216,9 +259,11 @@ function New-RandomImage {
 
     function New-ConcentricCircles {
         param(
-            [int]$imageWidth = 800,  # Set default image width to 800 pixels
+            [int]$imageWidth = 800, # Set default image width to 800 pixels
             [int]$imageHeight = 600, # Set default image height to 600 pixels
-            [string]$Text = $null,   # Optional text to be added to the image
+            [string]$Text = $null, # Optional text to be added to the image
+            [int]$TextSize = 40,                     
+            [String]$TextColor = "#FFFFFF",  
             [int[][]]$colorPalette = @( @(167, 56, 27), @(227, 197, 113), @(185, 178, 149), @(102, 173, 118) )  # Default color palette for the circles
         )
         
@@ -237,7 +282,8 @@ function New-RandomImage {
         function Test-IntersectionAndPlacement($x, $y, $radius) {
             foreach ($circle in $circles) {
                 $distance = [Math]::Sqrt([Math]::Pow($x - $circle[0], 2) + [Math]::Pow($y - $circle[1], 2))
-                if ($distance - $radius - $circle[2] -lt 20) {  # Check if new circle overlaps with existing ones
+                if ($distance - $radius - $circle[2] -lt 20) {
+                    # Check if new circle overlaps with existing ones
                     return $true
                 }
             }
@@ -246,7 +292,7 @@ function New-RandomImage {
     
         # Loop to generate non-overlapping circles
         for ($i = 0; $i -lt 100; $i++) {
-            $radius = Get-Random -Minimum 30 -Maximum ([Math]::Max($imageWidth, $imageHeight)/2)
+            $radius = Get-Random -Minimum 30 -Maximum ([Math]::Max($imageWidth, $imageHeight) / 2)
             $x = Get-Random -Minimum 0 -Maximum $imageWidth
             $y = Get-Random -Minimum 0 -Maximum $imageHeight
     
@@ -273,20 +319,19 @@ function New-RandomImage {
     
         # Add text to the image if specified
         if ($Text) {
-            $font = New-Object System.Drawing.Font("Arial", 40, [System.Drawing.FontStyle]::Bold)  # Set font properties
-            $textBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)  # Set text color
-            $borderBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Black)  # Set text border color
-            
-            New-Text -graphics $graphics -imageWidth $imageWidth -imageHeight $imageHeight -text $Text -font $font -textBrush $textBrush -borderBrush $borderBrush
+            New-Text -graphics $graphics -imageWidth $imageWidth -imageHeight $imageHeight -text $Text -TextSize $TextSize -TextColor $TextColor
         }
+
     
     }# New-ConcentricCircles
     
     function New-Squares {
         param(
-            [int]$imageWidth = 800,  # Default width for the image
+            [int]$imageWidth = 800, # Default width for the image
             [int]$imageHeight = 600, # Default height for the image
-            [string]$Text = $null,   # Optional text parameter to add text to the image
+            [string]$Text = $null, # Optional text parameter to add text to the image
+            [int]$TextSize = 40,                     
+            [String]$TextColor = "#FFFFFF",  
             [int[][]]$colorPalette = @( @(167, 56, 27), @(227, 197, 113), @(185, 178, 149), @(102, 173, 118) )  # Color palette for squares
         )
         
@@ -312,8 +357,8 @@ function New-RandomImage {
         $side = $random.Next($min_side, $max_side)  # Determine the side length of squares randomly
     
         # Generate squares across and beyond the visible area to ensure complete coverage
-        for ($x = -$imageWidth; $x -le $imageWidth; $x += $side) {
-            for ($y = -$imageHeight; $y -le $imageHeight; $y += $side) {
+        for ($x = - $imageWidth; $x -le $imageWidth; $x += $side) {
+            for ($y = - $imageHeight; $y -le $imageHeight; $y += $side) {
                 $Color = $colorPalette[$random.Next($colorPalette.Length)]  # Select a random color for each square
                 $rectColor = [System.Drawing.Color]::FromArgb(255, $Color[0], $Color[1], $Color[2])
                 $brush = New-Object System.Drawing.SolidBrush($rectColor)
@@ -324,13 +369,11 @@ function New-RandomImage {
         
         $graphics.ResetTransform()  # Reset transformations to default before drawing text
     
+        # Add text to the image if specified
         if ($Text) {
-            $font = New-Object System.Drawing.Font("Arial", 40, [System.Drawing.FontStyle]::Bold)  # Define font for text
-            $textBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)  # Define brush for text color
-            $borderBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Black)  # Define brush for text border
-            
-            New-Text -graphics $graphics -imageWidth $imageWidth -imageHeight $imageHeight -text $Text -font $font -textBrush $textBrush -borderBrush $borderBrush
+            New-Text -graphics $graphics -imageWidth $imageWidth -imageHeight $imageHeight -text $Text -TextSize $TextSize -TextColor $TextColor
         }
+
         
         $graphics.Restore($gState)  # Restore the graphics state saved at the beginning
     }#New-Squares
@@ -338,9 +381,11 @@ function New-RandomImage {
 
     function New-Stripes {
         param(
-            [int]$imageWidth = 800,  # Default width of the image
+            [int]$imageWidth = 800, # Default width of the image
             [int]$imageHeight = 600, # Default height of the image
-            [string]$Text = $null,   # Optional text parameter for adding text to the image
+            [string]$Text = $null, # Optional text parameter for adding text to the image
+            [int]$TextSize = 40,                     
+            [String]$TextColor = "#FFFFFF",  
             [int[][]]$colorPalette = @( @(167, 56, 27), @(227, 197, 113), @(185, 178, 149), @(102, 173, 118) )  # Color palette for the stripes
         )
         
@@ -368,14 +413,14 @@ function New-RandomImage {
         $max_dim = [Math]::Max($imageWidth, $imageHeight)
         $stripe_widths = 1..$colorPalette.Length | ForEach-Object { $random.Next(16, 256) }  # Generate random stripe widths between 16 and 256 pixels
         $stripe_index = 0
-        $x = -$max_dim * 2  # Start drawing from far left to ensure full coverage
+        $x = - $max_dim * 2  # Start drawing from far left to ensure full coverage
     
         # Loop to draw each stripe until the area is covered
         while ($x -lt $max_dim * 2) {
             $stripe_color = [System.Drawing.Color]::FromArgb(255, $colorPalette[$stripe_index][0], $colorPalette[$stripe_index][1], $colorPalette[$stripe_index][2])
             $brush = New-Object System.Drawing.SolidBrush($stripe_color)
             $stripe_width = $stripe_widths[$stripe_index]
-            $graphics.FillRectangle($brush, $x, -$max_dim * 2, $stripe_width, $max_dim * 4)  # Draw stripe
+            $graphics.FillRectangle($brush, $x, - $max_dim * 2, $stripe_width, $max_dim * 4)  # Draw stripe
     
             $x += $stripe_width  # Move to the next stripe position
             $stripe_index = ($stripe_index + 1) % $colorPalette.Length  # Cycle through colors
@@ -384,51 +429,54 @@ function New-RandomImage {
         # Reset transformations before potentially adding text
         $graphics.ResetTransform()
         
-        # Optionally add text over the stripes
+        # Add text to the image if specified
         if ($Text) {
-            $font = New-Object System.Drawing.Font("Arial", 40, [System.Drawing.FontStyle]::Bold)  # Define font properties
-            $textBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)  # Define text color
-            $borderBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::Black)  # Define border color for text
-            
-            New-Text -graphics $graphics -imageWidth $imageWidth -imageHeight $imageHeight -text $Text -font $font -textBrush $textBrush -borderBrush $borderBrush
+            New-Text -graphics $graphics -imageWidth $imageWidth -imageHeight $imageHeight -text $Text -TextSize $TextSize -TextColor $TextColor
         }
+
         
         # Restore the graphics state that was saved at the beginning
         $graphics.Restore($gState)
     }
     
-         # Array to hold all active options
-         $activeOptions = @()
+    # Array to hold all active options
+    $activeOptions = @()
 
-         # Check each switch and add the active ones to the array
-         if ($Bubble) { $activeOptions += "Bubble" }
-         if ($Circle) { $activeOptions += "Circle" }
-         if ($Stripe) { $activeOptions += "Stripe" }
-         if ($Square) { $activeOptions += "Square" }
+    # Check each switch and add the active ones to the array
+    if ($Bubble) { $activeOptions += "Bubble" }
+    if ($Circle) { $activeOptions += "Circle" }
+    if ($Stripe) { $activeOptions += "Stripe" }
+    if ($Square) { $activeOptions += "Square" }
      
-         # If no options were selected, add all possible options
-         if ($activeOptions.Count -eq 0) {
-             $activeOptions += "Bubble", "Circle", "Stripe", "Square"
-         }
+    # If no options were selected, add all possible options
+    if ($activeOptions.Count -eq 0) {
+        $activeOptions += "Bubble", "Circle", "Stripe", "Square"
+    }
      
-         # Select a random option from active options
-         $selectedOption = Get-Random -InputObject $activeOptions
+    # Select a random option from active options
+    $selectedOption = Get-Random -InputObject $activeOptions
      
-        #  Perform an action based on the selected option
-         switch ($selectedOption) {
-             "Bubble" { New-BubbleBackground -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -graphics $graphics}
-             "Circle" { New-ConcentricCircles -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -graphics $graphics}
-             "Stripe" { New-Stripes -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -graphics $graphics}
-             "Square" { New-Squares -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -graphics $graphics}
-         }
+    #  Perform an action based on the selected option
+    switch ($selectedOption) {
+        "Bubble" { New-BubbleBackground -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -TextSize $TextSize -TextColor $TextColor -graphics $graphics }
+        "Circle" { New-ConcentricCircles -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -TextSize $TextSize -TextColor $TextColor  -graphics $graphics }
+        "Stripe" { New-Stripes -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -TextSize $TextSize -TextColor $TextColor  -graphics $graphics }
+        "Square" { New-Squares -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -TextSize $TextSize -TextColor $TextColor  -graphics $graphics }
+    }
 
-        # Save the image to a file
-        $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+    # Save the image to a file
+    $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
         
-        # Clean up drawing objects
-        $graphics.Dispose()
-        $bitmap.Dispose()
+    # Clean up drawing objects
+    $graphics.Dispose()
+    $bitmap.Dispose()
 }#New-RandomImage
 
 
-Export-ModuleMember -Function New-RandomImage
+# Export-ModuleMember -Function New-RandomImage
+$IP = (Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null -and $_.NetAdapter.Status -eq 'Up' }).IPv4Address.IPAddress
+$Uptime = (get-date) - (gcim Win32_OperatingSystem).LastBootUpTime
+$FormattedUptime = "{0} days, {1} hours, {2} minutes" -f $Uptime.Days, $Uptime.Hours, $Uptime.Minutes, $Uptime.Seconds
+
+
+New-RandomImage -Text "VM-Test-DEV`nIP adress: 127.0.0.1`nUptime: $FormattedUptime" -TextSize 30 -TextColor "#FFF500"
