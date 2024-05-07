@@ -114,7 +114,7 @@ $Uptime = (get-date) - (gcim Win32_OperatingSystem).LastBootUpTime
 $FormattedUptime = "{0} days, {1} hours, {2} minutes" -f $Uptime.Days, $Uptime.Hours, $Uptime.Minutes, $Uptime.Seconds
 
 #Generate the image in a yellow text
-New-RandomImage -Text "$env:COMPUTERNAME`nIP adress: $IP`nUptime: $FormattedUptime" -TextSize 30 -TextColor "#FFF500"
+New-RandomImage -Text "$env:COMPUTERNAME`nIP Address: $IP`nUptime: $FormattedUptime" -TextSize 30 -TextColor "#FFF500"
 ```
 ![Multiline text](./images/Advanced.png)
 

@@ -473,10 +473,4 @@ function New-RandomImage {
 }#New-RandomImage
 
 
-# Export-ModuleMember -Function New-RandomImage
-$IP = (Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null -and $_.NetAdapter.Status -eq 'Up' }).IPv4Address.IPAddress
-$Uptime = (get-date) - (gcim Win32_OperatingSystem).LastBootUpTime
-$FormattedUptime = "{0} days, {1} hours, {2} minutes" -f $Uptime.Days, $Uptime.Hours, $Uptime.Minutes, $Uptime.Seconds
-
-
-New-RandomImage -Text "VM-Test-DEV`nIP adress: 127.0.0.1`nUptime: $FormattedUptime" -TextSize 30 -TextColor "#FFF500"
+Export-ModuleMember -Function New-RandomImage
