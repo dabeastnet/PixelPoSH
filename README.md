@@ -5,6 +5,9 @@
 
 PixelPoSH is a PowerShell module that generates customizable, random backgrounds using System.Drawing in .NET. This tool allows users to create images with various graphical patterns like bubbles, concentric circles, stripes, squares and 2 typed of waves. It's perfect for quickly generating backgrounds for desktops, websites, or any project that could use a splash of color and creativity. PixelPoSH also supports colored text!
 
+## Example images
+Please see the [EXAMPLES.md](./EXAMPLES.md) for some example output!
+
 ## Features
 
 - Generate images with specified width and height.
@@ -59,9 +62,6 @@ If you wish to update these palettes, simply run `Get-StaticPalettes.ps1`. This 
 ## Examples
 
 Below you can find some examples:
-
-## Example images
-Please see the [EXAMPLES.md](./EXAMPLES.md) for some example output.
 
 ### Parameters
 The following are the available parameters, with it's default values:
