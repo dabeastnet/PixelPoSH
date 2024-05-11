@@ -3,12 +3,12 @@
 
 # PixelPoSH
 
-PixelPoSH is a PowerShell module that generates customizable graphical backgrounds using System.Drawing in .NET. This tool allows users to create images with various graphical patterns like bubbles, concentric circles, stripes, and squares. It's perfect for quickly generating backgrounds for desktops, websites, or any project that could use a splash of color and creativity.
+PixelPoSH is a PowerShell module that generates customizable, random backgrounds using System.Drawing in .NET. This tool allows users to create images with various graphical patterns like bubbles, concentric circles, stripes, squares and 2 typed of waves. It's perfect for quickly generating backgrounds for desktops, websites, or any project that could use a splash of color and creativity. PixelPoSH also supports colored text!
 
 ## Features
 
 - Generate images with specified width and height.
-- Choose between multiple patterns: bubbles, concentric circles, stripes, and squares.
+- Choose between multiple patterns: bubbles, concentric circles, stripes, squares and 2 types of waves.
 - Add optional text to the image: this can be colored and you can specify textsize.
 - Save images to a specified path in PNG format.
 - `colormind.io` API integration for fetching color palettes.
@@ -33,7 +33,7 @@ Import-Module ./path/to/PixelPoSH.psm1
 
 ## Usage
 
-To generate an image, you can use the `New-RandomImage` function with its parameters. By default, the script randomly selects one of the 4 modes: `Bubble, Circle, Stripe, Square`. For each mode you define yourself, it will randomly select one of the modes.
+To generate an image, you can use the `New-RandomImage` function with its parameters. By default, the script randomly selects one of the 4 modes: `Bubble, Circle, Stripe, Square, PaletteWave and GradientWave`. For each mode you define yourself, it will randomly select one of the modes.
 
 ### Color Palettes
 
