@@ -75,6 +75,8 @@ The following are the available parameters, with it's default values:
         [switch]$Bubble,
         [switch]$Circle,
         [switch]$Stripe,
+        [switch]$PaletteWave,
+        [switch]$GradientWave,
         [switch]$Square
 ```
 

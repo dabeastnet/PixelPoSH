@@ -3,7 +3,7 @@
     Generates customizable graphical backgrounds and saves them as an image.
 
 .DESCRIPTION
-    New-RandomImage creates a random or specific graphical design based on user-defined parameters using System.Drawing in .NET. It supports various graphical patterns such as bubbles, concentric circles, stripes, and squares. The function allows the addition of optional text and saves the result to a specified path.
+    New-RandomImage creates a random or specific graphical design based on user-defined parameters using System.Drawing in .NET. It supports various graphical patterns such as bubbles, concentric circles, stripes, squares and 2 wave patterns. The function allows the addition of optional text and saves the result to a specified path.
     Author:Dieter Beckers 2024
     https://github.com/dabeastnet
 
@@ -37,6 +37,12 @@
 .PARAMETER Square
         A switch to select the square pattern.
 
+.PARAMETER PaletteWave
+        A switch to select the wave pattern based on the palette.
+
+.PARAMETER GradientWave
+        A switch to select the  wave pattern, in a gradient.        
+
 .EXAMPLE
     New-RandomImage -ImageWidth 1920 -ImageHeight 1080 -Path "c:\temp\test.png" -Text "Sample Text" -Square
 
@@ -58,8 +64,9 @@ function New-RandomImage {
         [switch]$Bubble,
         [switch]$Circle,
         [switch]$Stripe,
+        [switch]$PaletteWave,
+        [switch]$GradientWave,
         [switch]$Square
-
     )
     # Load required assemblies
     Add-Type -AssemblyName System.Drawing
@@ -378,7 +385,6 @@ function New-RandomImage {
         $graphics.Restore($gState)  # Restore the graphics state saved at the beginning
     }#New-Squares
     
-
     function New-Stripes {
         param(
             [int]$imageWidth = 800, # Default width of the image
@@ -438,6 +444,188 @@ function New-RandomImage {
         # Restore the graphics state that was saved at the beginning
         $graphics.Restore($gState)
     }
+
+    function New-Waves {
+        param (
+            [System.Drawing.Graphics]$graphics, # Graphics object for drawing
+            [System.Drawing.Bitmap]$bitmap, # Bitmap on which bubbles are drawn
+            [int]$imageWidth = 800, # Width of the image
+            [int]$imageHeight = 600, # Height of the image
+            [int]$segmentsCount = 200,
+            [int]$layersCount = (Get-Random -Minimum 3 -Maximum 20),
+            [int]$hueIncrement = 20, 
+            [int]$lightIncrement = 5,
+            [switch]$Gradient = $false, 
+            [int[][]]$colorPalette = @( @(167, 56, 27), @(227, 197, 113), @(185, 178, 149), @(102, 173, 118) )  # Default color palette
+        )
+        
+        
+        function Generate-Values($width, $segmentsCount, $layersCount, $hueIncrement, $lightIncrement) {
+            $random = New-Object System.Random
+            $wl = $width / (5 + (15 * $random.NextDouble()))
+        
+            return @{
+                Segments        = $segmentsCount
+                Wl              = $wl
+                Layers          = $layersCount
+                HueStart        = 360 * $random.NextDouble()
+                HueIncrement    = $hueIncrement
+                Ampl            = (0.1 * $wl) + (0.9 * $wl) * $random.NextDouble()
+                Offset          = $width * $random.NextDouble()
+                OffsetIncrement = $width / 20 + ($width / 10) * $random.NextDouble()
+                Sat             = 70  # Higher starting saturation
+                Light           = 50  # Fixed starting lightness
+                LightIncrement  = $lightIncrement
+            }
+        }
+        
+        function Convert-Color($rgb) {
+            return [System.Drawing.Color]::FromArgb($rgb[0], $rgb[1], $rgb[2])
+        }
+        
+        function Interpolate-Colors($color1, $color2, $fraction) {
+            # Interpolate between two colors
+            $r = [int]($color1.R + ($color2.R - $color1.R) * $fraction)
+            $g = [int]($color1.G + ($color2.G - $color1.G) * $fraction)
+            $b = [int]($color1.B + ($color2.B - $color1.B) * $fraction)
+            return [System.Drawing.Color]::FromArgb($r, $g, $b)
+        }
+        
+        function Get-ColorBrightness($color) {
+            # Calculate perceived brightness
+            [int]$brightness = [int](0.299 * $color.R + 0.587 * $color.G + 0.114 * $color.B)
+            return $brightness
+        }
+        
+        function Select-NonDarkColors($colorPalette) {
+            $random = New-Object System.Random
+            $darkColors = @()
+            $lightColors = @()
+        
+            # Categorize each color as dark or light
+            foreach ($colorValues in $colorPalette) {
+                $color = Convert-Color $colorValues
+                $brightness = Get-ColorBrightness $color
+                if ($brightness -lt 100) {
+                    $darkColors += $color
+                }
+                else {
+                    $lightColors += $color
+                }
+            }
+        
+            # If not enough colors in any category, duplicate some entries (safeguard)
+            if ($darkColors.Count -eq 0 -or $lightColors.Count -eq 0) {
+                Write-Host "Not enough color variety in the palette to select distinct dark and light colors."
+                return $null, $null
+            }
+        
+            # Select one random color from each category
+            $color1 = $darkColors[$random.Next(0, $darkColors.Count)]
+            $color2 = $lightColors[$random.Next(0, $lightColors.Count)]
+        
+            return $color1, $color2
+        }
+
+        $values = Generate-Values $imageWidth $segmentsCount $layersCount $hueIncrement $lightIncrement
+    
+        if ($Gradient) {
+            # Example usage
+            $darkColor, $lightColor = Select-NonDarkColors $colorPalette
+    
+            while ($null -eq $darkColor -and $null -eq $lightColor) {
+                $colorPalette = Get-ColorPalette
+                $darkColor, $lightColor = Select-NonDarkColors $colorPalette
+                Write-Host "AGAIN" -BackgroundColor DarkRed
+            }
+    
+            # Set background
+            $backgroundColor = $darkColor
+            $graphics.Clear($backgroundColor)
+                
+    
+            # Draw the layers
+            for ($l = 0; $l -lt $values.Layers; $l++) {
+                $fraction = $l / ($values.Layers - 1)
+                # $color1 = Convert-Color $colorPalette[0]
+                # $color2 = Convert-Color $colorPalette[1]
+    
+                $color1 = $darkColor
+                $color2 = $lightColor
+                $layerColor = Interpolate-Colors $color1 $color2 $fraction
+                $brush = New-Object System.Drawing.SolidBrush $layerColor
+    
+                $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+                $layerOffset = (Get-Random -Minimum 1 -Maximum ($values.Offset + $values.OffsetIncrement * $l))
+                # $layerOffset = $values.Offset + ($values.OffsetIncrement * $l)
+                $offsetY = (($l + 0.5) * ($imageHeight / $values.Layers))
+    
+                # Initialize path at the bottom left
+                $path.StartFigure()
+                $path.AddLine(0, $imageHeight, 0, $offsetY)
+                    
+                # Calculate wave pattern using curves
+                $points = New-Object System.Collections.ArrayList
+                for ($i = 0; $i -le $values.Segments; $i++) {
+                    $x = $i * ($imageWidth / $values.Segments)
+                    $y = $offsetY + ($values.Ampl * [Math]::Sin(($layerOffset + $x) / $values.Wl))
+                    $point = New-Object System.Drawing.PointF($x, $y)
+                    [void]$points.Add($point)
+                }
+                $path.AddCurve($points.ToArray())
+    
+                # Finish the path at the bottom right
+                $path.AddLine($imageWidth, $offsetY, $imageWidth, $imageHeight)
+                $path.CloseFigure()
+    
+                $graphics.FillPath($brush, $path)
+                $brush.Dispose()
+            }
+        }
+        else {
+            # Set background
+            $backgroundColor = Convert-Color $colorPalette[0]
+            $graphics.Clear($backgroundColor)
+    
+            # Draw the layers
+            for ($l = 0; $l -lt $values.Layers; $l++) {
+                $colorIndex = ($l + 1) % $colorPalette.Length
+                $layerColor = Convert-Color $colorPalette[$colorIndex]
+                $brush = New-Object System.Drawing.SolidBrush $layerColor
+    
+                $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+                # $layerOffset = $values.Offset + ($values.OffsetIncrement * $l)
+                $layerOffset = (Get-Random -Minimum 1 -Maximum ($values.Offset + $values.OffsetIncrement * $l))
+
+                $offsetY = (($l + 0.5) * ($imageHeight / $values.Layers))
+            
+                # Initialize path at the bottom left
+                $path.StartFigure()
+                $path.AddLine(0, $imageHeight, 0, $offsetY)
+            
+                # Calculate wave pattern using curves
+                $points = New-Object System.Collections.ArrayList
+                for ($i = 0; $i -le $values.Segments; $i++) {
+                    $x = $i * ($imageWidth / $values.Segments)
+                    $y = $offsetY + ($values.Ampl * [Math]::Sin(($layerOffset + $x) / $values.Wl))
+                    $point = New-Object System.Drawing.PointF($x, $y)
+                    [void]$points.Add($point)
+                }
+                $path.AddCurve($points.ToArray())
+    
+                # Finish the path at the bottom right
+                $path.AddLine($imageWidth, $offsetY, $imageWidth, $imageHeight)
+                $path.CloseFigure()
+    
+                $graphics.FillPath($brush, $path)
+                $brush.Dispose()
+            }
+        }
+        if ($Text) {
+            New-Text -graphics $graphics -imageWidth $imageWidth -imageHeight $imageHeight -text $Text -TextSize $TextSize -TextColor $TextColor
+        }
+    
+    }
     
     # Array to hold all active options
     $activeOptions = @()
@@ -447,10 +635,13 @@ function New-RandomImage {
     if ($Circle) { $activeOptions += "Circle" }
     if ($Stripe) { $activeOptions += "Stripe" }
     if ($Square) { $activeOptions += "Square" }
+    if ($PaletteWave) { $activeOptions += "PaletteWave" }
+    if ($GradientWave) { $activeOptions += "GradientWave" }
+
      
     # If no options were selected, add all possible options
     if ($activeOptions.Count -eq 0) {
-        $activeOptions += "Bubble", "Circle", "Stripe", "Square"
+        $activeOptions += "Bubble", "Circle", "Stripe", "Square", "PaletteWave", "GradientWave"
     }
      
     # Select a random option from active options
@@ -462,15 +653,15 @@ function New-RandomImage {
         "Circle" { New-ConcentricCircles -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -TextSize $TextSize -TextColor $TextColor  -graphics $graphics }
         "Stripe" { New-Stripes -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -TextSize $TextSize -TextColor $TextColor  -graphics $graphics }
         "Square" { New-Squares -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -TextSize $TextSize -TextColor $TextColor  -graphics $graphics }
+        "PaletteWave" { New-Waves -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -TextSize $TextSize -TextColor $TextColor  -graphics $graphics }
+        "GradientWave" { New-Waves -Gradient -imageWidth $ImageWidth -imageHeight $ImageHeight -colorPalette (Get-ColorPalette) -Text $Text -TextSize $TextSize -TextColor $TextColor  -graphics $graphics }
     }
-
+    
     # Save the image to a file
     $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
-        
     # Clean up drawing objects
     $graphics.Dispose()
     $bitmap.Dispose()
 }#New-RandomImage
-
 
 Export-ModuleMember -Function New-RandomImage

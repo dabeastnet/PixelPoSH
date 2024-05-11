@@ -47,3 +47,22 @@ This md will showcase some of the capabilities of the script.
 
 ![Stripe Background4](./images/Stripes4.png)
 
+### Gradient Wave
+
+![Gradient Wave Background1](./images/WaveGradient.png)
+
+![Gradient Wave Background2](./images/WaveGradient2.png)
+
+![Gradient Wave Background3](./images/WaveGradient3.png)
+
+![Gradient Wave Background4](./images/WaveGradient4.png)
+
+### Palette Wave
+
+![Palette Wave Background1](./images/WavePalette.png)
+
+![Palette Wave Background2](./images/WavePalette2.png)
+
+![Palette Wave Background3](./images/WavePalette3.png)
+
+![Palette Wave Background4](./images/WavePalette4.png)
