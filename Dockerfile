@@ -1,22 +1,27 @@
-RUN pwsh -NoLogo -NoProfile -NonInteractive -Command \
-  "Set-PSRepository PSGallery -InstallationPolicy Trusted; \
-   Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force; \
-   Save-Module -Name PSSVG -Path /out -Force"
-# /out/PSSVG now contains the module (pure .psm1/.psd1, arch-agnostic)
+ARG PS_TAG=latest
 
-# Stage 2: final runtime image (arm64/amd64/etc.)
-FROM mcr.microsoft.com/powershell:latest
+# Stage 1: fetch PSSVG on the build platform (downloads module into /out)
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/powershell:${PS_TAG} AS modfetch
+RUN pwsh -NoLogo -NoProfile -NonInteractive -Command `
+    "Set-PSRepository PSGallery -InstallationPolicy Trusted; `
+     Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force; `
+     Save-Module -Name PSSVG -Path /out -Force"
 
-# tools + fonts for PNG support
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Stage 2: final runtime image
+FROM mcr.microsoft.com/powershell:${PS_TAG}
+
+# Install dependencies for PNG rendering
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
       ca-certificates tzdata librsvg2-bin fonts-dejavu && \
     rm -rf /var/lib/apt/lists/*
 
-# copy module fetched in stage 1 (no pwsh runs here)
+# Copy the downloaded module from the build stage
 COPY --from=modfetch /out/PSSVG /usr/local/share/powershell/Modules/PSSVG
 
+# Copy your module into /app
 WORKDIR /app
 COPY PixelPoSH /app/PixelPoSH
 
-# JSON-form CMD (quiet the linter warning)
+# Set default command (JSON array form avoids OS‑signal warnings)
 CMD ["pwsh","-NoLogo","-NoProfile","-Command","Import-Module ./PixelPoSH/PixelPoSH.psm1; 'PixelPoSH ready'"]
