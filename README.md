@@ -1,6 +1,8 @@
 ![Header](./images/Header.png)
 (Generated with PixelPoSH)
 
+[![Build Docker image](https://github.com/dabeastnet/PixelPoSH/actions/workflows/main.yml/badge.svg)](https://github.com/dabeastnet/PixelPoSH/actions/workflows/main.yml)
+
 # PixelPoSH
 
 PixelPoSH is a PowerShell module that generates customizable, random **SVG** backgrounds using the [PSSVG](https://github.com/StartAutomating/PSSVG) DSL (no System.Drawing). It includes patterns like bubbles, concentric circles, stripes, squares, two kinds of waves, and two types of lowpoly. You can add overlay text (single or multi-line), choose colours from palettes (local or colormind.io), and optionally rasterize to **PNG** using external tools. It's perfect for quickly generating backgrounds for desktops, websites, or any project that could use a splash of color and creativity. PixelPoSH also supports colored text!
@@ -160,7 +162,7 @@ Install one of:
 
 # Docker usage
 
-A prebuilt image is published to Docker Hub as `docker.io/<your-dockerhub-username>/pixelposh`. It includes PowerShell 7, PSSVG, and librsvg (`rsvg-convert`) so you can generate **SVG** and **PNG** without installing anything locally.
+A prebuilt image is published to Docker Hub as `docker.io/dabeastnet/pixelposh`. It includes PowerShell 7, PSSVG, and librsvg (`rsvg-convert`) so you can generate **SVG** and **PNG** without installing anything locally.
 
 ## Pull
 
