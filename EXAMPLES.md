@@ -66,3 +66,23 @@ This md will showcase some of the capabilities of the script.
 ![Palette Wave Background3](./images/WavePalette3.png)
 
 ![Palette Wave Background4](./images/WavePalette4.png)
+
+### LowPoly Gradient
+
+![Palette Wave Background1](./images/LowPolyGradient.png)
+
+![Palette Wave Background2](./images/LowPolyGradient2.png)
+
+![Palette Wave Background3](./images/LowPolyGradient3.png)
+
+![Palette Wave Background4](./images/LowPolyGradient4.png)
+
+### LowPoly Palette
+
+![Palette Wave Background1](./images/LowPolyPalette.png)
+
+![Palette Wave Background2](./images/LowPolyPalette2.png)
+
+![Palette Wave Background3](./images/LowPolyPalette3.png)
+
+![Palette Wave Background4](./images/LowPolyPalette4.png)

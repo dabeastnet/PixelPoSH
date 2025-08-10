@@ -1,0 +1,232 @@
+---
+# PixelPoSH wallpaper playbook
+#
+# This playbook generates a random background image using the PixelPoSH module on
+# the Ansible control host, embeds the target machine's hostname as text, copies
+# the generated image to each target and sets it as the desktop background. It
+# attempts to detect the target display resolution when possible and falls back
+# to a default size if detection fails. The playbook is designed to work with
+# both Windows and Linux targets.
+
+###############################################
+# Play definition
+###############################################
+
+- name: Generate and apply random wallpaper using PixelPoSH
+  hosts: all
+  gather_facts: yes
+  vars:
+    # Default image dimensions (used if resolution detection fails)
+    default_width: 1920
+    default_height: 1080
+  tasks:
+    ######################################################################
+    # Determine the display resolution of the target host (best effort)
+    ######################################################################
+    - name: Attempt to retrieve Windows screen resolution
+      win_shell: |
+        $res = Get-CimInstance -ClassName Win32_VideoController | Select-Object -First 1 -ExpandProperty CurrentHorizontalResolution,CurrentVerticalResolution
+        $res
+      register: win_res
+      when: ansible_os_family == 'Windows'
+      failed_when: false
+
+    - name: Set resolution facts for Windows
+      set_fact:
+        image_width: "{{ (win_res.stdout_lines[0] | regex_search('\\d+') | int) if win_res.stdout_lines is defined and win_res.stdout_lines|length > 0 else default_width }}"
+        image_height: "{{ (win_res.stdout_lines[1] | regex_search('\\d+') | int) if win_res.stdout_lines is defined and win_res.stdout_lines|length > 1 else default_height }}"
+      when: ansible_os_family == 'Windows'
+
+    - name: Attempt to retrieve Linux screen resolution using xrandr
+      shell: |
+        set -o pipefail
+        if command -v xrandr >/dev/null 2>&1; then
+          xrandr | awk '/\*/ {print $1; exit}'
+        elif command -v xdpyinfo >/dev/null 2>&1; then
+          xdpyinfo | awk '/dimensions/{print $2; exit}'
+        else
+          echo ""
+        fi
+      register: lin_res
+      when: ansible_os_family != 'Windows'
+      failed_when: false
+
+    - name: Set resolution facts for Linux
+      set_fact:
+        image_width: "{{ (lin_res.stdout.split('x')[0] | int) if lin_res.stdout | length > 0 and 'x' in lin_res.stdout else default_width }}"
+        image_height: "{{ (lin_res.stdout.split('x')[1] | int) if lin_res.stdout | length > 0 and 'x' in lin_res.stdout else default_height }}"
+      when: ansible_os_family != 'Windows'
+
+    ######################################################################
+    # Generate the image on the control node
+    ######################################################################
+    - name: Ensure directory for generated images exists on control host
+      delegate_to: localhost
+      file:
+        path: "{{ playbook_dir }}/files/_out"
+        state: directory
+
+
+    - name: Generate random image with hostname using PixelPoSH on control host
+      delegate_to: localhost
+      vars:
+        ps_script: |
+          $module = '{{ pixelposh_module_path }}'
+          if (-not (Test-Path -LiteralPath $module)) {
+            throw "PixelPoSH module not found: $module"
+          }
+          Import-Module -Name $module -Force
+
+          $w  = {{ image_width }}
+          $h  = {{ image_height }}
+          $hn = '{{ inventory_hostname }}'
+
+          $outDir = '{{ playbook_dir }}/files/_out'
+          $svgPath = Join-Path -Path $outDir -ChildPath ($hn + '.svg')
+          $pngPath = Join-Path -Path $outDir -ChildPath ($hn + '.png')
+
+          New-RandomImage -ImageWidth $w -ImageHeight $h -Text $hn -Path $svgPath -RasterizeToPng -PngPath $pngPath
+      command:
+        argv:
+          - pwsh
+          - -NoProfile
+          - -NonInteractive
+          - -Command
+          - "{{ ps_script }}"
+      args:
+        creates: "{{ playbook_dir }}/files/_out/{{ inventory_hostname }}.png"
+      changed_when: true
+
+
+
+    ######################################################################
+    # Copy the generated image to the target host
+    ######################################################################
+    - name: Define destination path on target
+      set_fact:
+        dest_wallpaper: "{{ 'C:\\Windows\\Web\\Wallpaper\\pixelposh.png' if ansible_os_family == 'Windows' else '/tmp/pixelposh_' + inventory_hostname + '.png' }}"
+
+    - name: Copy generated image to target host
+      copy:
+        src: "{{ playbook_dir }}/files/_out/{{ inventory_hostname }}.png"
+        dest: "{{ dest_wallpaper }}"
+        mode: '0644'
+      when: ansible_os_family != 'Windows'
+
+    - name: Copy generated image to Windows target host
+      win_copy:
+        src: "{{ playbook_dir }}/files/_out/{{ inventory_hostname }}.png"
+        dest: "{{ dest_wallpaper }}"
+      when: ansible_os_family == 'Windows'
+
+    ######################################################################
+    # Apply the wallpaper on target host
+    ######################################################################
+    - name: Set wallpaper on Windows
+      win_shell: |
+        $path = '{{ dest_wallpaper }}'
+        # Set wallpaper via SystemParametersInfo
+        Add-Type @"
+        using System.Runtime.InteropServices;
+        public class NativeMethods {
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+        }
+        "@
+        [NativeMethods]::SystemParametersInfo(0x0014, 0, $path, 0x01 -bor 0x02) | Out-Null
+        # Persist wallpaper path in registry
+        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name Wallpaper -Value $path
+      when: ansible_os_family == 'Windows'
+
+      # --- Detect the active desktop user (GNOME/XFCE need the session user) ---
+    - name: Find active graphical user (best effort)
+      become: yes
+      shell: |
+        sess=$(loginctl list-sessions --no-legend 2>/dev/null | awk '$5=="active"{print $1; exit}')
+        if [ -n "$sess" ]; then
+          loginctl show-session "$sess" -p Name --value
+        else
+          # fallback: current SSH user
+          who | awk 'NR==1{print $1}'
+        fi
+      register: wall_user
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family != 'Windows'
+
+    - name: Set wallpaper user fact
+      set_fact:
+        wallpaper_user: "{{ (wall_user.stdout | trim) | default(ansible_user_id) }}"
+      when: ansible_os_family != 'Windows'
+
+    # Build a proper file:// URI (GNOME wants a URI, not a path)
+    - name: Build file URI for GNOME
+      set_fact:
+        dest_wallpaper_uri: "{{ 'file://' ~ dest_wallpaper }}"
+      when: ansible_os_family != 'Windows'
+
+    # --- GNOME: set picture-uri / picture-uri-dark + options (run as desktop user) ---
+    - name: Set wallpaper on GNOME (gsettings)
+      become: yes
+      become_user: "{{ wallpaper_user }}"
+      vars:
+        gset_script: |
+          set -e
+          # talk to the user's DBus session
+          export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+          if ! command -v gsettings >/dev/null 2>&1; then
+            exit 3
+          fi
+          # set both light and dark keys; set scaling mode
+          gsettings set org.gnome.desktop.background picture-uri "$URI"
+          gsettings set org.gnome.desktop.background picture-uri-dark "$URI"
+          gsettings set org.gnome.desktop.background picture-options "zoom"
+      command:
+        argv:
+          - bash
+          - -lc
+          - "{{ gset_script }}"
+      environment:
+        URI: "{{ dest_wallpaper_uri }}"
+      register: gsettings_result
+      changed_when: gsettings_result.rc == 0
+      failed_when: false
+      when: ansible_os_family != 'Windows'
+
+    # --- XFCE: set last-image on all monitors/workspaces (run as desktop user) ---
+    - name: Set wallpaper on XFCE (xfconf-query)
+      become: yes
+      become_user: "{{ wallpaper_user }}"
+      vars:
+        xfce_script: |
+          set -e
+          export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+          if ! command -v xfconf-query >/dev/null 2>&1; then
+            exit 3
+          fi
+          # update every last-image key we find
+          for p in $(xfconf-query -c xfce4-desktop -l | grep '/last-image$'); do
+            xfconf-query -c xfce4-desktop -p "$p" -s "$IMG"
+          done
+      command:
+        argv:
+          - bash
+          - -lc
+          - "{{ xfce_script }}"
+      environment:
+        IMG: "{{ dest_wallpaper }}"
+      register: xfce_result
+      changed_when: xfce_result.rc == 0
+      failed_when: false
+      when: ansible_os_family != 'Windows'
+
+    # Warn if neither GNOME nor XFCE took effect
+    - name: Warn if no supported Linux desktop detected
+      when: ansible_os_family != 'Windows' and
+            (gsettings_result.rc | default(99)) != 0 and
+            (xfce_result.rc | default(99)) != 0
+      debug:
+        msg: >
+          Could not set wallpaper with gsettings or xfconf-query.
+          Ensure a desktop session is running for {{ wallpaper_user }}
+          and DBus session bus is available at /run/user/$(id -u)/bus.

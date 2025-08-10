@@ -1,0 +1,19 @@
+all:
+  children:
+    windows:
+      hosts:
+        win01:
+          ansible_host: 10.0.0.21
+          ansible_user: Administrator
+          ansible_password: "REDACTED"
+          ansible_connection: winrm
+          ansible_winrm_transport: basic
+          ansible_winrm_server_cert_validation: ignore
+    linux:
+      hosts:
+        lin01:
+          ansible_host: 10.0.0.31
+          ansible_user: rootcanal
+          # uncomment if you need sudo on the target
+          # ansible_become: true
+          # ansible_become_method: sudo

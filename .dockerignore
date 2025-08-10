@@ -1,0 +1,11 @@
+.git
+.github
+/.git/
+**/bin/
+**/obj/
+*.md
+*.png
+*.jpg
+*.svg
+*.zip
+*.ps1xml
