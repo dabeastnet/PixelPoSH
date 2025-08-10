@@ -2,10 +2,10 @@ ARG PS_TAG=latest
 
 # Stage 1: fetch PSSVG on the build platform (downloads module into /out)
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/powershell:${PS_TAG} AS modfetch
-RUN pwsh -NoLogo -NoProfile -NonInteractive -Command `
-    "Set-PSRepository PSGallery -InstallationPolicy Trusted; `
-     Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force; `
-     Save-Module -Name PSSVG -Path /out -Force"
+RUN pwsh -NoLogo -NoProfile -NonInteractive -Command \
+    "Set-PSRepository PSGallery -InstallationPolicy Trusted; \
+    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force; \
+    Save-Module -Name PSSVG -Path /out -Force"
 
 # Stage 2: final runtime image
 FROM mcr.microsoft.com/powershell:${PS_TAG}
