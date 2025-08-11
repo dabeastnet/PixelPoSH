@@ -21,9 +21,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # ensure pwsh is available for parsing the PSD1
-      - name: Set up PowerShell
-        uses: actions/setup-powershell@v2
+      # Optional sanity check (pwsh is preinstalled on GitHub-hosted runners)
+      - name: Verify PowerShell
+        run: pwsh -v
 
       - name: Read ModuleVersion from PSD1
         id: modver
