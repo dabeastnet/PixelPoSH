@@ -132,31 +132,59 @@ function New-RandomImage {
     # Retrieve a palette (array of int[3])
     $palette = Get-ColorPalette
 
+    #Common params
+    $commonParam = @{
+        ImageWidth   = $ImageWidth 
+        ImageHeight  = $ImageHeight
+        ColorPalette = $palette
+        Text         = $Text 
+        TextSize     = $TextSize
+        TextColor    = $TextColor
+    }
+
     # Generate SVG elements for the chosen pattern
     switch ($selected) {
         'Bubble' {
-            $svgContent = New-BubbleBackgroundSVG -ImageWidth $ImageWidth -ImageHeight $ImageHeight -ColorPalette $palette -Text $Text -TextSize $TextSize -TextColor $TextColor
+            $svgContent = New-BubbleBackgroundSVG  @commonParam
         }
+
         'Circle' {
-            $svgContent = New-ConcentricCirclesSVG -ImageWidth $ImageWidth -ImageHeight $ImageHeight -ColorPalette $palette -Text $Text -TextSize $TextSize -TextColor $TextColor
+            $svgContent = New-ConcentricCirclesSVG @commonParam
         }
+
         'Square' {
-            $svgContent = New-SquaresSVG -ImageWidth $ImageWidth -ImageHeight $ImageHeight -ColorPalette $palette -Text $Text -TextSize $TextSize -TextColor $TextColor
+            $svgContent = New-SquaresSVG @commonParam
         }
+
         'Stripe' {
-            $svgContent = New-StripesSVG -ImageWidth $ImageWidth -ImageHeight $ImageHeight -ColorPalette $palette -Text $Text -TextSize $TextSize -TextColor $TextColor
+            $svgContent = New-StripesSVG @commonParam
         }
+
         'PaletteWave' {
-            $svgContent = New-WavesSVG -ImageWidth $ImageWidth -ImageHeight $ImageHeight -ColorPalette $palette -Text $Text -TextSize $TextSize -TextColor $TextColor
+            $svgContent = New-WavesSVG @commonParam
         }
+
         'GradientWave' {
-            $svgContent = New-WavesSVG -Gradient -ImageWidth $ImageWidth -ImageHeight $ImageHeight -ColorPalette $palette -Text $Text -TextSize $TextSize -TextColor $TextColor
+            $p = $commonParam.Clone()
+            $p.Gradient = $true          # switch param -> include only when needed
+            $svgContent = New-WavesSVG @p
         }
+
         'LowPolyGradient' {
-            $svgContent = New-LowPolySVG -ImageWidth $ImageWidth -ImageHeight $ImageHeight -PointCount 450 -UseGradient -ColorPalette $palette -ColorNoise 0.08 -AddBorderPoints -Text $Text -TextSize $TextSize -TextColor $TextColor
+            $p = $commonParam.Clone()
+            $p.PointCount      = 450
+            $p.UseGradient     = $true
+            $p.ColorNoise      = 0.08
+            $p.AddBorderPoints = $true
+            $svgContent = New-LowPolySVG @p
         }
+
         'LowPolyPalette' {
-            $svgContent = New-LowPolySVG -ImageWidth $ImageWidth -ImageHeight $ImageHeight -PointCount 420 -ColorPalette $palette -PaletteNoise 0.12 -AddBorderPoints -Text $Text -TextSize $TextSize -TextColor $TextColor
+            $p = $commonParam.Clone()
+            $p.PointCount      = 420
+            $p.PaletteNoise    = 0.12
+            $p.AddBorderPoints = $true
+            $svgContent = New-LowPolySVG @p
         }
     }
 
@@ -248,31 +276,35 @@ function Convert-SvgToPng {
         [string]$Background = 'none'   # 'none' for transparent, or '#RRGGBB'
     )
 
-    $rsvg     = Get-Command rsvg-convert -ErrorAction SilentlyContinue
+    $rsvg     = Get-Command rsvg-convert  -ErrorAction SilentlyContinue
     $magick   = Get-Command magick        -ErrorAction SilentlyContinue
     $inkscape = Get-Command inkscape      -ErrorAction SilentlyContinue
 
     if ($rsvg) {
-        # librsvg (fast, very good SVG support)
-        $args = @()
-        if ($Width)  { $args += @('-w', $Width) }
-        if ($Height) { $args += @('-h', $Height) }
-        if ($Background -ne 'none') { $args += @('--background-color', $Background) } # e.g. '#ffffff'
-        $args += @('-o', $PngPath, $SvgPath)
-        & $rsvg.Source $args
+        # Build once, then splat
+        $arguments = @(
+            $(if ($Width)  { '-w'; $Width })
+            $(if ($Height) { '-h'; $Height })
+            $(if ($Background -and $Background -ne 'none') { '--background-color'; $Background })
+            '-o'
+            $PngPath
+            $SvgPath
+        )
+
+        & $rsvg.Source $arguments
         return
     }
 
+
     if ($magick) {
-        # ImageMagick (use density for crispness, then resize to exact WxH if provided)
-        $base = @()
-        if ($Background -eq 'none') {
-            $base += @('-background','none')
+        # Build background args
+        $backgroundArgs = if ($Background -eq 'none') {
+            @('-background','none')
         } else {
-            $base += @('-background', $Background)
+            @('-background', $Background)
         }
 
-        # Build geometry without using ?? (works on Windows PowerShell 5.1 and PowerShell 7+)
+        # Build geometry (no null-coalescing so it's 5.1-safe)
         $resizeGeom = $null
         if ($Width -and $Height) {
             $resizeGeom = ('{0}x{1}' -f $Width, $Height)
@@ -281,15 +313,18 @@ function Convert-SvgToPng {
         } elseif ($Height) {
             $resizeGeom = ('x{0}' -f $Height)
         }
+        $resizeArgs = if ($resizeGeom) { @('-resize', $resizeGeom) } else { @() }
 
         # magick input.svg -density 300 [background opts] [-resize WxH] output.png
-        $args = @()
-        $args += @($SvgPath, '-density','300')
-        $args += $base
-        if ($resizeGeom) { $args += @('-resize', $resizeGeom) }
-        $args += $PngPath
+        $arguments = @(
+            $SvgPath
+            '-density','300'       # apply on read
+            $backgroundArgs
+            $resizeArgs
+            $PngPath
+        )
 
-        & $magick.Source $args
+        & $magick.Source $arguments
         return
     }
 
@@ -307,24 +342,46 @@ function Convert-SvgToPng {
     }
 
     if ($inkscape) {
-        $args = @($SvgPath, '--export-type=png', "--export-filename=$PngPath")
-        if ($Width)  { $args += "--export-width=$Width" }
-        if ($Height) { $args += "--export-height=$Height" }
-        if ($Background -eq 'none') { $args += '--export-background-opacity=0' } else { $args += "--export-background=$Background" }
-        & $inkscape.Source $args
+        $arguments = @(
+            $SvgPath
+            '--export-type=png'
+            "--export-filename=$PngPath"
+            $(if ($Width)  { "--export-width=$Width" })
+            $(if ($Height) { "--export-height=$Height" })
+            $(if ($Background -eq 'none') { 
+                '--export-background-opacity=0' 
+            } elseif ($Background) {
+                "--export-background=$Background"
+            })
+        )
+
+        & $inkscape.Source $arguments
         return
     }
+
 
     # flatpak fallback
     $flatpak = Get-Command flatpak -ErrorAction SilentlyContinue
     if ($flatpak) {
-        $args = @('run','org.inkscape.Inkscape',$SvgPath,'--export-type=png',"--export-filename=$PngPath")
-        if ($Width)  { $args += "--export-width=$Width" }
-        if ($Height) { $args += "--export-height=$Height" }
-        if ($Background -eq 'none') { $args += '--export-background-opacity=0' } else { $args += "--export-background=$Background" }
-        & $flatpak.Source $args
+        $arguments = @(
+            'run', 'org.inkscape.Inkscape'
+            $SvgPath
+            '--export-type=png'
+            "--export-filename=$PngPath"
+            $(if ($Width)  { "--export-width=$Width" })
+            $(if ($Height) { "--export-height=$Height" })
+            $(if ($Background -eq 'none') { 
+                '--export-background-opacity=0' 
+            } else {
+                "--export-background=$Background"
+            })
+        )
+
+        & $flatpak.Source $arguments
+
         return
     }
+
 
     if($IsLinux){
         throw "No SVG renderer found. Install one of: librsvg (rsvg-convert), ImageMagick (magick), or Inkscape. For example `"sudo apt install librsvg2-bin`""
@@ -375,11 +432,23 @@ function New-TextSVG {
         }
     }
 
-    svg.text -X $x -Y $startY `
-    -FontFamily 'Arial, Helvetica, sans-serif' -FontSize $TextSize `
-    -Fill $fill -Stroke $BorderColor -StrokeWidth $BorderThickness `
-    -Style 'paint-order: stroke fill; text-rendering:geometricPrecision' `
-    -TextAnchor end -DominantBaseline baseline -Content $tspans
+    # Keys are parameter names (no leading dashes)
+    $textArgs = @{
+        X                = $x
+        Y                = $startY
+        FontFamily       = 'Arial, Helvetica, sans-serif'
+        FontSize         = $TextSize
+        Fill             = $fill
+        Stroke           = $BorderColor
+        StrokeWidth      = $BorderThickness
+        Style            = 'paint-order: stroke fill; text-rendering:geometricPrecision'
+        TextAnchor       = 'end'
+        DominantBaseline = 'baseline'
+        Content          = $tspans
+    }
+
+    svg.text @textArgs
+
 
 }
 
@@ -549,7 +618,8 @@ function New-LowPolySVG {
     foreach ($tri in $final) {
         # Inside: foreach ($tri in $final) {  # <-- rename the loop var to avoid $t reuse
         $pa=$pts[$tri.A]; $pb=$pts[$tri.B]; $pc=$pts[$tri.C]
-        $cx = ($pa.X + $pb.X + $pc.X) / 3.0
+        # optional: diagonal mix (uncomment to try)
+        # $cx = ($pa.X + $pb.X + $pc.X) / 3.0
         $cy = ($pa.Y + $pb.Y + $pc.Y) / 3.0
 
         if ($UseGradient) {
@@ -872,9 +942,7 @@ function New-WavesSVG {
     # canvas.  Increasing this range introduces more waves per line by default while still
     # allowing occasional longer wavelengths when a smaller divisor is chosen.
     $wavelength = [int]($ImageWidth / (Get-Random -Minimum 8 -Maximum 20))
-    # The base amplitude is a fraction of the wavelength.  Individual layers will derive their
-    # amplitudes from their own wavelength so this value is used only for initial calculations.
-    $amplitude  = [int]($wavelength / (Get-Random -Minimum 4 -Maximum 9))
+
     # The starting offset for the first wave and an incremental shift per layer.
     $offsetBase      = Get-Random -Minimum 50 -Maximum 360
     $offsetIncrement = Get-Random -Minimum 10 -Maximum 70

@@ -2,8 +2,8 @@ name: Build Docker image
 
 on:
   push:
-    branches: [ main ]     # pushes to main -> :latest
-    tags:     [ 'v*' ]     # push tag v1.2.3 -> :1.2.3
+    branches: [ main ]     # pushes to main -> also gets :latest
+    tags:     [ 'v*' ]     # optional: still triggers build on git tags
 
 jobs:
   build:
@@ -21,6 +21,25 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # ensure pwsh is available for parsing the PSD1
+      - name: Set up PowerShell
+        uses: actions/setup-powershell@v2
+
+      - name: Read ModuleVersion from PSD1
+        id: modver
+        shell: pwsh
+        run: |
+          $m = Import-PowerShellDataFile ./PixelPoSH/PixelPoSH.psd1
+          $v = $m.ModuleVersion.ToString()
+          if (-not ($v -match '^\d+\.\d+\.\d+($|-)' )) {
+            throw "ModuleVersion '$v' is not SemVer (expected X.Y.Z[...])."
+          }
+          $parts = $v.Split('.')
+          "version=$v"           >> $env:GITHUB_OUTPUT
+          "major=$($parts[0])"   >> $env:GITHUB_OUTPUT
+          "minor=$($parts[1])"   >> $env:GITHUB_OUTPUT
+          "patch=$($parts[2])"   >> $env:GITHUB_OUTPUT
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -32,9 +51,15 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: dabeastnet/pixelposh
+          # Build tags from the PSD1 version
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}},value=${{ github.ref_name }}
+            type=raw,value=${{ steps.modver.outputs.version }}
+            type=raw,value=${{ steps.modver.outputs.major }}.${{ steps.modver.outputs.minor }}
+            type=raw,value=${{ steps.modver.outputs.major }}
+            type=sha
+          # Also add :latest when building the default branch (main)
+          flavor: |
+            latest={{is_default_branch}}
 
       - name: Build and push (PNG-enabled)
         uses: docker/build-push-action@v6
@@ -46,4 +71,22 @@ jobs:
           build-args: |
             PS_TAG=ubuntu-22.04
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.version=${{ steps.modver.outputs.version }}
+
+      # (Optional) auto-create git tag vX.Y.Z from ModuleVersion on main
+      - name: Tag repository with ModuleVersion
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -e
+          VER="${{ steps.modver.outputs.version }}"
+          git fetch --tags --quiet
+          if git rev-parse -q --verify "refs/tags/v${VER}" >/dev/null; then
+            echo "Tag v${VER} already exists."
+          else
+            git config user.name "github-actions"
+            git config user.email "github-actions@users.noreply.github.com"
+            git tag -a "v${VER}" -m "PixelPoSH v${VER}"
+            git push origin "v${VER}"
+          fi
