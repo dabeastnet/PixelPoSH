@@ -162,7 +162,7 @@ Install one of:
 
 # Docker usage
 
-A prebuilt image is published to Docker Hub as `[hub.docker.com/r/dabeastnet/pixelposh](https://hub.docker.com/r/dabeastnet/pixelposh)`. It includes PowerShell 7, PSSVG, and librsvg (`rsvg-convert`) so you can generate **SVG** and **PNG** without installing anything locally.
+A prebuilt image is published to Docker Hub at [dabeastnet/pixelposh](https://hub.docker.com/r/dabeastnet/pixelposh). It includes PowerShell 7, PSSVG, and librsvg (`rsvg-convert`) so you can generate **SVG** and **PNG** without installing anything locally.
 
 ## Pull
 
