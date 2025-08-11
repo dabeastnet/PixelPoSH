@@ -57,9 +57,9 @@ jobs:
             type=raw,value=${{ steps.modver.outputs.major }}.${{ steps.modver.outputs.minor }}
             type=raw,value=${{ steps.modver.outputs.major }}
             type=sha
-          # Also add :latest when building the default branch (main)
-          flavor: |
-            latest={{is_default_branch}}
+            # add :latest only on default branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
 
       - name: Build and push (PNG-enabled)
         uses: docker/build-push-action@v6
